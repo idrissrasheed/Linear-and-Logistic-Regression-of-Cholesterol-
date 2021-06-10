@@ -1,0 +1,228 @@
+---
+title: "Cholesterol"
+author: "Idris Rasheed"
+date: "6/7/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#Load packages
+library(gee)
+library(multcomp)
+library(lmtest)
+library(ggplot2)
+library(knitr)
+```
+
+Project Goal:
+The goal is to explore relationships among the dataset's features using the statistical methods.
+• Explore the cholesterol dataset
+• Use graphical and descriptive methods to investigate the association between triglycerides and BMI
+• Use simple linear regression to investigate the association between triglycerides and BMI
+• Use logistic regression to investigate the association between triglycerides and hypertension.
+• Analyze the association between hypertension and rs174548 adjusted for triglycerides using logistic regression.
+
+Features
+ID: Subject ID
+sex: Sex: 0 = male, 1 = female
+age: Age in years
+chol: Serum total cholesterol, mg/dl
+BMI: Body-mass index, kg/m2
+TG: Serum triglycerides, mg/dl
+APOE: Apolipoprotein E genotype, with six genotypes coded 1-6: 1 = e2/e2, 2 = e2/e3,
+3 = e2/e4, 4 = e3/e3, 5 = e3/e4, 6 = e4/e4
+rs174548: Candidate SNP 1 genotype, chromosome 11, physical position 61,327,924.
+Coded as the number of minor alleles: 0 = C/C, 1 = C/G, 2 = G/G.
+rs4775401: Candidate SNP 2 genotype, chromosome 15, physical position
+59,476,915. Coded as the number of minor alleles: 0 = C/C, 1 = C/T, 2 = T/T.
+HTN: diagnosed hypertension: 0 = no, 1 = yes
+chd: diagnosis of coronary heart disease: 0 = no, 1 = yes
+
+```{r}
+#load data
+data = read.csv('SISG-Data-cholesterol.csv', head = T)
+
+head(data)
+```
+
+```{r}
+#create objects for specific columns
+TG = data$TG
+BMI = data$BMI
+
+#compute summary statistics
+summary(TG)
+summary(BMI)
+```
+
+```{r}
+#segment BMI levels greater than or equal to 25 and less than 25
+group = 1*(BMI > 25)
+group = factor(group,levels=c(0,1), labels=c("<=25",">25"))
+table(group)
+by(TG, group, mean)
+by(TG, group, sd)
+group
+```
+Use plots and descriptive statistics to explore the variables triglycerides and BMI individually as well as their relationship to each other. 
+```{r}
+#create histogram
+hist1 = ggplot(data, aes(x=BMI)) +
+  geom_histogram( binwidth=3, fill="#69b3a2", color="#e9ecef", alpha=0.9) +
+   ggtitle("BMI Histogram") +
+    xlab("BMI (kg/m^2)") +
+     ylab("Frequency")
+hist1
+
+hist2 = ggplot(data, aes(x=TG)) +
+  geom_histogram( binwidth=30, fill="#69b3a2", color="#e9ecef", alpha=0.9) +
+   ggtitle("Triglycerides Histogram") +
+     xlab("Triglycerides Histogram (mg/dl)") +
+       ylab("Frequency")
+hist2
+
+
+#create boxplot with mean points
+box = ggplot(data, aes(x = group, y = TG)) + 
+  geom_boxplot(color="black", aes(fill = group), alpha=0.2) +
+    stat_summary(fun = mean, geom ="point", shape=23, size=4)
+box
+
+#create scatterplot
+plot = ggplot(data, aes(x = BMI, y = TG)) +
+  geom_point(size = 1.5) +
+   ggtitle("BMI vs Triglycerides") +
+    xlab("BMI (kg/m2)") +
+       ylab("Triglycerides Histogram (mg/dl)")
+plot
+```
+Use linear regression to investigate the association between triglycerides and BMI.
+```{r}
+#remove outliers from linear model
+BMI35 = which(BMI<35)
+
+#Create linear regression object
+fit = lm(TG[BMI35] ~ BMI[BMI35])
+summary(fit)
+```
+Conduct a residuals analysis (using all data) to check the linear regression model assumptions.
+```{r}
+#Plot residuals vs fitted values
+plot(fit$fitted, fit$residuals,xlab="Fitted values",ylab="Residuals")
+abline(0,0)
+
+#QQ plot
+qqnorm(fit$residuals)
+qqline(fit$residuals)
+
+#Deletion diagnostics
+dfb = dfbeta(fit)
+index = order(abs(dfb[,2]),decreasing=T)
+cbind(dfb[index[1:15],],BMI[index[1:15]],TG[index[1:15]])
+
+#fit a linear regression model with robust standard errors
+fit.gee = gee(TG ~ BMI, id = seq(1,length(TG)))
+summary(fit.gee)
+
+#calculate p-values
+z = abs(fit.gee$coef/sqrt(diag(fit.gee$robust)))
+2*(1-pnorm(z))
+```
+Summarize the variable APOE. Create a new binary variable indicating presence of the APOE e4 allele (APOE = 3, 5, or 6). Investigate the association between triglycerides and BMI adjusting for presence of the APOE e4 allele.
+```{r}
+#Summarize the variable APOE
+APOE = data$APOE 
+table_APOE = table(APOE)
+prop.table(table_APOE)
+
+#binary variable indicating presence of APOE4
+APOE4 = ifelse(APOE %in% c(3,5,6), 1, 0)
+
+#Linear regression analyses for association of APOE4 and BMI with TG
+#multiple linear regression of triglycerides on BMI and APOE4
+fit2 = lm(TG~BMI+APOE4)
+summary(fit2)
+```
+
+Plot separate scatterplots for triglycerides vs BMI for subjects in the two groups defined by presence of the APOE e4 allele. Fit a linear regression model that investigates whether the association between triglycerides and BMI is modified by the APOE4 allele. 
+```{r}
+#scatterplot with subjects stratified by APOE4
+par(mfrow = c(1,1))
+plot(BMI[APOE4 == 0], TG[APOE4 == 0], pch = 1, col=75,xlab = "BMI (kg/m2)", ylab = "Triglycerides (mg/dl)")
+points(BMI[APOE4 == 1], TG[APOE4 == 1], pch = 1, col=34)
+title(main = "TG vs BMI Stratified by APOE")
+
+#multiple linear regression of triglycerides on BMI, APOE4, and interaction
+fit3 = lm(TG ~ BMI*APOE4)
+summary(fit3)
+
+#Compare the models with and without interaction
+anova(fit2,fit3)
+
+#Compare with the model without APOE4
+anova(fit,fit3)
+```
+We will study the relationship between genotype, clinical characteristics, and the binary outcome hypertension
+
+Is there an association between rs174548 and hypertension? Analyze this relationship using descriptive statistics as well as a logistic regression analysis. 
+```{r}
+#Descriptive statistics for hypertension
+HTN = data$HTN
+rs174548 = data$rs174548
+table(HTN)
+table(HTN,rs174548)
+chisq.test(HTN,rs174548)
+by(TG,HTN,mean)
+
+#Logistic regression analysis for the association between rs174548 and hypertension
+glm.mod = glm(HTN ~ factor(rs174548), family = "binomial")
+summary(glm.mod)
+exp(glm.mod$coef)
+exp(confint(glm.mod))
+```
+
+Use logistic regression to investigate the association between triglycerides and hypertension.
+```{r}
+#Logistic regression analysis for the association between triglycerides and hypertension
+glm.mod2 = glm(HTN ~ TG, family = "binomial")
+summary(glm.mod2)
+exp(glm.mod2$coef)
+exp(confint(glm.mod2))
+```
+
+Analyze the association between hypertension and rs174548 adjusted for triglycerides using logistic regression.
+```{r, eval = TRUE, echo = TRUE}
+#logistic regression analysis for the association between rs174548 and hypertension
+#adjusting for triglycerides
+glm.mod3 = glm(HTN ~ TG+factor(rs174548), family = "binomial")
+summary(glm.mod3)
+exp(glm.mod3$coef)
+exp(confint(glm.mod3))
+
+lrtest(glm.mod2,glm.mod3)
+```
+
+Use a GLM to estimate the relative risk of hypertension for patients with different rs174548 genotypes, adjusting for triglyceries. Make sure you can interpret the coefficients.
+```{r, eval = TRUE, echo = TRUE}
+# relative risk regression for the association between rs174548 and hypertension
+# adjusting for triglycerides
+glm.mod4 = gee(HTN ~ TG+factor(rs174548), family = "poisson", id = seq(1,nrow(data)))
+summary(glm.mod4)
+exp(glm.mod4$coef)
+p = 2*(1-pnorm(abs(glm.mod4$coef)/sqrt(diag(glm.mod4$robust.variance))))
+p
+```
+
+Use a GLM to estimate the risk difference for hypertension according to rs174548 genotypes, adjusting for triglycerides.
+```{r, eval = TRUE, echo = TRUE}
+#risk difference regression for the association between rs174548 and hypertension
+#adjusting for triglycerides
+glm.mod5 <- gee(HTN ~ TG+factor(rs174548), id = seq(1,nrow(data)))
+summary(glm.mod5)
+p2 = 2*(1-pnorm(abs(glm.mod5$coef)/sqrt(diag(glm.mod5$robust.variance))))
+p2
+```
