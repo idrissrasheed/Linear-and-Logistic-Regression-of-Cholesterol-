@@ -1,11 +1,16 @@
 # Linear-and-Logistic-Regression-of-Cholesterol-
 
 The goal is to explore relationships among the dataset's features using the statistical methods.
+
 Explore the cholesterol dataset
+
 Use graphical and descriptive methods to investigate the association between triglycerides and BMI
+
 Use simple linear regression to investigate the association between triglycerides and BMI
-Use logistic regression to investigate the association between triglycerides and hypertension.
-Analyze the association between hypertension and rs174548 adjusted for triglycerides using logistic regression.
+
+Use logistic regression to investigate the association between triglycerides and hypertension
+
+Analyze the association between hypertension and rs174548 adjusted for triglycerides using logistic regression
 
 Features
 
